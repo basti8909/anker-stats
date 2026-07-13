@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anker Solix Energieauswertung</title>
+  <link rel="stylesheet" href="style.css?v=5" />
+  <!-- Apache ECharts 5.5.1 -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <!-- PapaParse 5.4.1 -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <!-- ── Upload Screen ─────────────────────────────────────── -->
+  <div id="upload-screen">
+    <div class="upload-card">
+      <div class="brand">
+        <span class="brand-icon">⚡</span>
+        <h1>Anker Solix<br />Energieauswertung</h1>
+      </div>
+      <p class="upload-subtitle">Sankey-Diagramm aus CSV-Export</p>
+
+      <div id="drop-zone" role="button" tabindex="0" aria-label="CSV-Datei auswählen oder hier ablegen">
+        <svg class="drop-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="1.5"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p class="drop-text">CSV-Datei hier ablegen</p>
+        <p class="drop-hint">oder</p>
+        <label class="btn-browse" for="file-input">Datei auswählen</label>
+        <input type="file" id="file-input" accept=".csv" />
+      </div>
+
+      <p id="upload-error" class="upload-error" hidden></p>
+    </div>
+  </div>
+
+  <!-- ── Dashboard ─────────────────────────────────────────── -->
+  <div id="dashboard">
+
+    <header class="dash-header">
+      <div class="dash-title">
+        <span class="brand-icon">⚡</span>
+        <span>Anker Solix Energieauswertung</span>
+      </div>
+      <button id="btn-reload" class="btn-link">Andere Datei laden</button>
+    </header>
+
+    <div class="controls-row">
+      <select id="view-type" class="view-select" aria-label="Ansicht wählen">
+        <option value="year">Jahr</option>
+        <option value="month">Monat</option>
+        <option value="total">Gesamt</option>
+      </select>
+      <div class="period-nav">
+        <button id="btn-prev" class="btn-nav" aria-label="Vorheriger Zeitraum">&#8249;</button>
+        <span id="period-label" class="period-label" aria-live="polite">—</span>
+        <button id="btn-next" class="btn-nav" aria-label="Nächster Zeitraum">&#8250;</button>
+      </div>
+    </div>
+
+    <div id="chart-wrap">
+      <div id="sankey-chart"></div>
+    </div>
+
+    <div id="pv-chart-wrap">
+      <div id="pv-chart"></div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-label">CO₂ gespart</span>
+        <span id="co2-value" class="stat-value">—</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js?v=5"></script>
+</body>
+</html>

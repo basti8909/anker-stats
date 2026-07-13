@@ -1,0 +1,348 @@
+/* ══════════════════════════════════════════════════════════════
+   Anker Solix Energieauswertung  –  style.css
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Colour tokens (light mode) ─────────────────────────────── */
+:root {
+  --bg:                #f0f4f8;
+  --surface:           #ffffff;
+  --surface-2:         #eef1f5;
+  --border:            #d1d9e0;
+  --text-primary:      #1f2328;
+  --text-muted:        #57606a;
+  --accent:            #e8890a;
+  --drop-hover-border: #0969da;
+  --drop-hover-bg:     rgba(9, 105, 218, 0.06);
+  --error:             #cf222e;
+  --btn-nav-bg:        #eef1f5;
+  --btn-nav-hover:     #e1e6ec;
+  --shadow:            0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.06);
+}
+
+/* ── Dark mode overrides ────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:                #0d1117;
+    --surface:           #161b22;
+    --surface-2:         #21262d;
+    --border:            #30363d;
+    --text-primary:      #e6edf3;
+    --text-muted:        #8b949e;
+    --accent:            #f5a623;
+    --drop-hover-border: #388bfd;
+    --drop-hover-bg:     rgba(56, 139, 253, 0.08);
+    --error:             #f85149;
+    --btn-nav-bg:        #21262d;
+    --btn-nav-hover:     #2d333b;
+    --shadow:            0 1px 3px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.2);
+  }
+}
+
+/* ── Base ────────────────────────────────────────────────────── */
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ════════════════════════════════════════════════════════════
+   UPLOAD SCREEN
+   ════════════════════════════════════════════════════════════ */
+#upload-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.upload-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 2.5rem 2rem 2rem;
+  width: 100%;
+  max-width: 440px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  margin-bottom: .5rem;
+}
+
+.brand-icon {
+  font-size: 1.4rem;
+}
+
+.upload-card h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.upload-subtitle {
+  color: var(--text-muted);
+  font-size: .9rem;
+  margin-bottom: 1.75rem;
+}
+
+/* ── Drop zone ───────────────────────────────────────────────── */
+#drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 2.25rem 1.5rem;
+  cursor: pointer;
+  transition: border-color .18s, background .18s, box-shadow .18s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+  outline: none;
+}
+
+#drop-zone:hover,
+#drop-zone.dragover {
+  border-color: var(--drop-hover-border);
+  background: var(--drop-hover-bg);
+}
+
+#drop-zone:focus-visible {
+  border-color: var(--drop-hover-border);
+  box-shadow: 0 0 0 3px var(--drop-hover-bg);
+}
+
+.drop-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--text-muted);
+  margin-bottom: .2rem;
+}
+
+.drop-text {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.drop-hint {
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+
+.btn-browse {
+  display: inline-block;
+  padding: .45rem 1.3rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter .15s;
+  margin-top: .2rem;
+}
+
+.btn-browse:hover { filter: brightness(1.1); }
+
+#file-input { display: none; }
+
+.upload-error {
+  margin-top: 1rem;
+  color: var(--error);
+  font-size: .875rem;
+  line-height: 1.4;
+}
+
+/* ════════════════════════════════════════════════════════════
+   DASHBOARD
+   ════════════════════════════════════════════════════════════ */
+/* Hidden by default; showDashboard() in app.js sets style.display='flex' */
+#dashboard {
+  display: none;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  height: 52px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-weight: 700;
+  font-size: .975rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: .875rem;
+  padding: .3rem .6rem;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.btn-link:hover { background: var(--surface-2); }
+
+/* ── Controls row ────────────────────────────────────────────── */
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1.5rem;
+  height: 52px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.view-select {
+  appearance: none;
+  background-color: var(--surface-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .7rem center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .375rem 2rem .375rem .75rem;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  min-width: 92px;
+  transition: border-color .15s;
+}
+.view-select:hover,
+.view-select:focus { border-color: var(--accent); outline: none; }
+
+.period-nav {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+}
+
+.btn-nav {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--btn-nav-bg);
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  padding: 0;
+}
+.btn-nav:hover:not(:disabled) { background: var(--btn-nav-hover); }
+.btn-nav:disabled { opacity: .3; cursor: default; }
+
+.period-label {
+  min-width: 150px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: .01em;
+}
+
+/* ── Chart area ──────────────────────────────────────────────── */
+#chart-wrap {
+  flex: 1;
+  min-height: 400px;
+  position: relative;
+}
+
+#sankey-chart {
+  position: absolute;
+  inset: 0;
+  min-height: 400px;
+}
+
+/* ── PV pie chart area ───────────────────────────────────────── */
+#pv-chart-wrap {
+  flex-shrink: 0;
+  height: 280px;
+  position: relative;
+  border-top: 1px solid var(--border);
+}
+
+#pv-chart {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── Stats row ───────────────────────────────────────────────── */
+.stats-row {
+  display: flex;
+  gap: 1rem;
+  padding: .625rem 1.5rem;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .5rem 1.1rem;
+}
+
+.stat-label {
+  font-size: .8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: .975rem;
+  font-weight: 700;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .dash-header,
+  .controls-row { padding: 0 .75rem; }
+
+  .controls-row {
+    height: auto;
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+
+  .period-label { min-width: 120px; }
+
+  .stats-row { padding: .5rem .75rem; }
+}
