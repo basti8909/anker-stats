@@ -6,9 +6,9 @@
 
 ## Project overview
 
-A **pure static frontend** (no build step, no server required) that reads an Anker Solix energy details CSV export and renders an interactive **Sankey energy-flow diagram** and a **PV panel production pie chart** using Apache ECharts.
+A **pure static frontend** (no build step, no server required) that reads an Anker Solix energy details CSV export and renders an interactive **Sankey energy-flow diagram** plus time-series views for household supply and PV distribution using Apache ECharts.
 
-The user uploads a CSV file via drag-and-drop or file picker. The app parses it entirely in the browser, aggregates the daily rows by year, month, or total range, and draws a Sankey diagram showing how energy flows between sources (PV, Battery, Grid) and sinks (Battery charge, Household, Grid feed-in). A donut pie chart below the Sankey shows the proportional production contribution of each PV panel string (PV1–PV4) for the selected period. A CO₂ savings stat is shown below both charts. The UI language is German.
+The user uploads a CSV file via drag-and-drop or file picker. The app parses it entirely in the browser, aggregates the daily rows by year, month, or total range, and draws a Sankey diagram showing how energy flows between sources (PV, Battery, Grid) and sinks (Battery charge, Household, Grid feed-in). Additional time-series views show household supply and the distribution of solar energy. The UI language is German.
 
 ---
 
@@ -65,10 +65,7 @@ The app detects the header row by finding the first row where `row[0] === 'Datum
 | 12 | `Gesamte Solarstromerzeugung (kWh)` | Total PV generation (= col 6 + col 7 + col 13) |
 | 13 | `Solarstrom‑Einspeisung (kWh)` | Solar energy fed into grid |
 | 14 | `Solarbank 3 E2700 Pro – Gesamterzeugung (kWh)` | Device total generation |
-| 15 | `Solarbank 3 E2700 Pro – PV1‑Erzeugung (kWh)` | PV string 1 generation — used in pie chart |
-| 16 | `Solarbank 3 E2700 Pro – PV2‑Erzeugung (kWh)` | PV string 2 generation — used in pie chart |
-| 17 | `Solarbank 3 E2700 Pro – PV3‑Erzeugung (kWh)` | PV string 3 generation — used in pie chart |
-| 18 | `Solarbank 3 E2700 Pro – PV4‑Erzeugung (kWh)` | PV string 4 generation — used in pie chart |
+| 15–18 | PV panel generation columns | Present in the export but not used by the application |
 | 19 | `CO₂‑Reduktion (kgCO₂/kWh)` | CO₂ saved = total PV × 0.363 |
 
 > **Note on special characters:** column 13 uses a non-breaking hyphen (U+2011) in the CSV header. The app accesses all columns by index, not by name, so encoding issues do not affect parsing.
@@ -131,7 +128,7 @@ Both CDN scripts are loaded from `cdn.jsdelivr.net`. An internet connection is r
 - Add a new section to `#dashboard` in `index.html`
 - Create a dedicated `buildXxxOption(data)` function in `app.js`
 - Re-use the existing `aggregate()` function; it returns sums for all Sankey and PV columns
-- PV panel detail columns (15–18) are already parsed and available via `data.pv1`–`data.pv4` from `aggregate()`
+- PV panel detail columns (15–18) are intentionally not parsed because the panel-level view was removed.
 
 ### Adding new columns from a future Anker export
 1. Add the column index to the `COL` constant in `app.js`

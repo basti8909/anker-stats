@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Anker Solix Energieauswertung</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <title>Solix Dashboard</title>
+  <link rel="stylesheet" href="style.css?v=11" />
   <!-- Apache ECharts 5.5.1 -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   <!-- PapaParse 5.4.1 -->
@@ -17,9 +17,9 @@
     <div class="upload-card">
       <div class="brand">
         <span class="brand-icon">⚡</span>
-        <h1>Anker Solix<br />Energieauswertung</h1>
+        <h1>Solix Dashboard</h1>
       </div>
-      <p class="upload-subtitle">Sankey-Diagramm aus CSV-Export</p>
+      <p class="upload-subtitle">Energiediagramme aus CSV-Export</p>
 
       <div id="drop-zone" role="button" tabindex="0" aria-label="CSV-Datei auswählen oder hier ablegen">
         <svg class="drop-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
@@ -45,7 +45,7 @@
     <header class="dash-header">
       <div class="dash-title">
         <span class="brand-icon">⚡</span>
-        <span>Anker Solix Energieauswertung</span>
+        <span>Solix Dashboard</span>
       </div>
       <button id="btn-reload" class="btn-link">Andere Datei laden</button>
     </header>
@@ -63,23 +63,40 @@
       </div>
     </div>
 
-    <div id="chart-wrap">
+    <div class="chart-tabs" role="tablist" aria-label="Diagramme">
+      <button id="tab-sankey" class="chart-tab is-active" role="tab"
+        aria-selected="true" aria-controls="chart-wrap" tabindex="0">Energiefluss</button>
+      <button id="tab-haushalt" class="chart-tab" role="tab"
+        aria-selected="false" aria-controls="household-chart-wrap" tabindex="-1">Haushaltsversorgung</button>
+      <button id="tab-pv-verteilung" class="chart-tab" role="tab"
+        aria-selected="false" aria-controls="pv-distribution-chart-wrap" tabindex="-1">PV-Verteilung</button>
+    </div>
+
+    <div id="chart-wrap" class="chart-panel" role="tabpanel" aria-labelledby="tab-sankey">
       <div id="sankey-chart"></div>
     </div>
 
-    <div id="pv-chart-wrap">
-      <div id="pv-chart"></div>
+    <div id="household-chart-wrap" class="chart-panel" role="tabpanel" aria-labelledby="tab-haushalt" hidden>
+      <div id="household-chart"></div>
+    </div>
+
+    <div id="pv-distribution-chart-wrap" class="chart-panel" role="tabpanel" aria-labelledby="tab-pv-verteilung" hidden>
+      <div id="pv-distribution-chart"></div>
     </div>
 
     <div class="stats-row">
       <div class="stat-card">
-        <span class="stat-label">CO₂ gespart</span>
-        <span id="co2-value" class="stat-value">—</span>
+        <span class="stat-label">Autarkiegrad</span>
+        <span id="autarkie-value" class="stat-value">—</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Eigenverbrauchsquote</span>
+        <span id="eigenverbrauch-value" class="stat-value">—</span>
       </div>
     </div>
 
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

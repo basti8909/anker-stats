@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════
-   Anker Solix Energieauswertung  –  app.js
+  Solix Dashboard  –  app.js
    ══════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -24,11 +24,6 @@ const COL = Object.freeze({
   GENUTZTE_SOLAR:       11,
   GESAMT_SOLAR:         12,
   SOLAR_EINSPEISUNG:    13,
-  PV1:                  15,
-  PV2:                  16,
-  PV3:                  17,
-  PV4:                  18,
-  CO2:                  19,
 });
 
 const DE_MONTHS = Object.freeze([
@@ -36,16 +31,27 @@ const DE_MONTHS = Object.freeze([
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
 ]);
 
+const MOBILE_BREAKPOINT = 600;
+
 /* ── Application state ──────────────────────────────────────── */
 let records         = [];     // Array of parsed daily record objects
 let availableYears  = [];     // Sorted number[]
 let availableMonths = [];     // Sorted {year, month}[]
+let firstDate       = null;   // Earliest date present in the CSV
+let lastDate        = null;   // Latest date present in the CSV
 let viewType        = 'year'; // 'year' | 'month' | 'total'
 let currentYear     = null;
 let currentMonth    = null;   // 1–12 (only used in 'month' view)
+let activeChartTab   = 'sankey';
 let chart           = null;   // ECharts instance (Sankey)
-let pvChart         = null;   // ECharts instance (PV pie)
-let lastTheme       = undefined;
+let householdChart  = null;   // ECharts instance (household supply)
+let pvDistributionChart = null; // ECharts instance (PV distribution)
+let lastTheme;
+let lastMobile;
+
+function isMobileViewport() {
+  return window.innerWidth <= MOBILE_BREAKPOINT;
+}
 
 /* ── Utilities ──────────────────────────────────────────────── */
 
@@ -59,9 +65,12 @@ function fmtKwh(kwh) {
 function fmtPeriod() {
   if (viewType === 'year') return String(currentYear);
   if (viewType === 'month') return `${DE_MONTHS[currentMonth - 1]} ${currentYear}`;
-  const first = availableYears[0];
-  const last  = availableYears[availableYears.length - 1];
-  return first === last ? String(first) : `${first} – ${last}`;
+  if (!firstDate || !lastDate) return '—';
+  return `${fmtDate(firstDate)} - ${fmtDate(lastDate)}`;
+}
+
+function fmtDate(date) {
+  return `${date.day}.${date.month}.${date.year}`;
 }
 
 /* ── CSV Parsing ────────────────────────────────────────────── */
@@ -109,11 +118,6 @@ function parseCSV(text) {
       genutzeSolar:       n(COL.GENUTZTE_SOLAR),
       gesamtSolar:        n(COL.GESAMT_SOLAR),
       solarEinspeisung:   n(COL.SOLAR_EINSPEISUNG),
-      co2:                n(COL.CO2),
-      pv1:                n(COL.PV1),
-      pv2:                n(COL.PV2),
-      pv3:                n(COL.PV3),
-      pv4:                n(COL.PV4),
     });
   }
 
@@ -122,6 +126,11 @@ function parseCSV(text) {
   }
 
   records = parsed;
+
+  const byTime = (a, b) => Date.UTC(a.year, a.month - 1, a.day)
+    - Date.UTC(b.year, b.month - 1, b.day);
+  firstDate = parsed.reduce((min, r) => byTime(r.date, min) < 0 ? r.date : min, parsed[0].date);
+  lastDate  = parsed.reduce((max, r) => byTime(r.date, max) > 0 ? r.date : max, parsed[0].date);
 
   // Build sorted year list
   availableYears = [...new Set(records.map(r => r.date.year))].sort((a, b) => a - b);
@@ -148,6 +157,12 @@ function aggregate(year = null, month = null) {
       ? records.filter(r => r.date.year === year && r.date.month === month)
       : records.filter(r => r.date.year === year);
 
+  return aggregateRows(rows);
+}
+
+/** Sum Sankey-relevant values for an arbitrary list of daily records. */
+function aggregateRows(rows) {
+
   const sum = key => rows.reduce((acc, r) => acc + r[key], 0);
   return {
     eigenverbrauch:     sum('eigenverbrauch'),
@@ -160,12 +175,57 @@ function aggregate(year = null, month = null) {
     genutzeSolar:       sum('genutzeSolar'),
     gesamtSolar:        sum('gesamtSolar'),
     solarEinspeisung:   sum('solarEinspeisung'),
-    co2:                sum('co2'),
-    pv1:                sum('pv1'),
-    pv2:                sum('pv2'),
-    pv3:                sum('pv3'),
-    pv4:                sum('pv4'),
   };
+}
+
+/** Return all daily records belonging to the period currently displayed. */
+function getCurrentRows() {
+  if (viewType === 'total') return records;
+  if (viewType === 'year') return records.filter(r => r.date.year === currentYear);
+  return records.filter(r => r.date.year === currentYear && r.date.month === currentMonth);
+}
+
+function dateKey(date) {
+  return `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
+}
+
+function monthKey(date) {
+  return `${date.year}-${String(date.month).padStart(2, '0')}`;
+}
+
+/**
+ * Aggregate the selected period by day in month view (and short total views),
+ * otherwise by calendar month.
+ */
+function buildTimeSeries(rows) {
+  const monthCount = new Set(rows.map(r => monthKey(r.date))).size;
+  const byDay = viewType === 'month' || (viewType === 'total' && monthCount < 2);
+  const buckets = new Map();
+
+  rows.forEach(row => {
+    const key = byDay ? dateKey(row.date) : monthKey(row.date);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(row);
+  });
+
+  return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, bucketRows]) => {
+    const values = aggregateRows(bucketRows);
+    const autarkie = values.eigenverbrauch > 0
+      ? (values.solarZuHaushalt + values.speicherZuHaushalt) / values.eigenverbrauch * 100
+      : 0;
+    const eigenverbrauchsquote = values.gesamtSolar > 0
+      ? (values.solarZuHaushalt + values.solarZuSpeicher) / values.gesamtSolar * 100
+      : 0;
+    const [year, month, day] = key.split('-').map(Number);
+    return {
+      label: byDay
+        ? `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.`
+        : `${DE_MONTHS[month - 1].slice(0, 3)} ${year}`,
+      values,
+      autarkie,
+      eigenverbrauchsquote,
+    };
+  });
 }
 
 /* ── Period index helpers ───────────────────────────────────── */
@@ -182,70 +242,59 @@ function monthIdx() {
  * Nodes (sources, left):    PV · Batterie (Entladung) · Netz (Import)
  * Nodes (sinks,   right):   Batterie (Ladung) · Haushalt · Netz (Einspeisung)
  *
- * KPIs shown on nodes:
- *   PV        – Selbstverbrauchsquote = Genutzte Solar / Gesamt Solar
- *   Haushalt  – Solar-Anteil am Verbrauch = (Solar + Batterie) / Eigenverbrauch
- *   Netz out  – Einspeisungsquote = Einspeisung / Gesamt Solar
+ * Node labels show only the energy quantity. Percentage KPIs are shown in
+ * the footer instead, where their definitions are explicit.
  */
 function buildSankeyOption(d) {
   const isDark     = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const labelColor = isDark ? '#c9d1d9' : '#24292f';
-
-  // ── KPIs ─────────────────────────────────────────────────────
-  const svq = d.gesamtSolar    > 0 ? d.genutzeSolar / d.gesamtSolar * 100 : 0;
-  const sa  = d.eigenverbrauch > 0
-    ? (d.solarZuHaushalt + d.speicherZuHaushalt) / d.eigenverbrauch * 100
-    : 0;
-  const esq = d.gesamtSolar    > 0 ? d.solarEinspeisung / d.gesamtSolar * 100 : 0;
+  const isMobile   = isMobileViewport();
 
   // ── Node definitions ─────────────────────────────────────────
-  // Custom properties (displayName, kwh, pct) are accessible in the
+  // Custom properties (displayName, kwh) are accessible in the
   // series-level label formatter via params.data.
   const allNodes = [
     {
       name: 'pv',
       displayName: 'PV',
       kwh: d.solarZuHaushalt + d.solarZuSpeicher + d.solarEinspeisung,
-      pct: svq,
       itemStyle: { color: '#f5a623' },
-      label: { position: 'left' },
+      label: { position: isMobile ? 'top' : 'left' },
     },
     {
       name: 'bat_out',
       displayName: 'Batterie',
       kwh: d.speicherZuHaushalt,
       itemStyle: { color: '#26c6da' },
-      label: { position: 'left' },
+      label: { position: isMobile ? 'top' : 'left' },
     },
     {
       name: 'netz_in',
       displayName: 'Netz',
       kwh: d.netzZuHaushalt + d.netzZuSpeicher,
       itemStyle: { color: '#5c6bc0' },
-      label: { position: 'left' },
+      label: { position: isMobile ? 'top' : 'left' },
     },
     {
       name: 'bat_in',
       displayName: 'Batterie',
       kwh: d.solarZuSpeicher + d.netzZuSpeicher,
       itemStyle: { color: '#26c6da' },
-      label: { position: 'right' },
+      label: { position: isMobile ? 'bottom' : 'right' },
     },
     {
       name: 'haushalt',
       displayName: 'Haushalt',
       kwh: d.solarZuHaushalt + d.speicherZuHaushalt + d.netzZuHaushalt,
-      pct: sa,
       itemStyle: { color: '#ab47bc' },
-      label: { position: 'right' },
+      label: { position: isMobile ? 'bottom' : 'right' },
     },
     {
       name: 'netz_out',
       displayName: 'Netz',
       kwh: d.solarEinspeisung,
-      pct: esq,
       itemStyle: { color: '#42a5f5' },
-      label: { position: 'right' },
+      label: { position: isMobile ? 'bottom' : 'right' },
     },
   ];
 
@@ -278,18 +327,20 @@ function buildSankeyOption(d) {
         }
         // Node tooltip
         const nd = params.data;
-        let html = `<strong>${nd.displayName}</strong><br/>${fmtKwh(nd.kwh)}`;
-        if (nd.pct !== undefined) html += `<br/>${nd.pct.toFixed(1)} %`;
-        return html;
+        return `<strong>${nd.displayName}</strong><br/>${fmtKwh(nd.kwh)}`;
       },
     },
     series: [{
       type: 'sankey',
       data: nodes,
       links: rawLinks,
-      orient: 'horizontal',
-      nodeWidth: 22,
-      nodeGap: 16,
+      orient: isMobile ? 'vertical' : 'horizontal',
+      left: isMobile ? 24 : 130,
+      right: isMobile ? 24 : 130,
+      top: isMobile ? 78 : 28,
+      bottom: isMobile ? 78 : 28,
+      nodeWidth: isMobile ? 18 : 22,
+      nodeGap: isMobile ? 18 : 16,
       layoutIterations: 32,
       emphasis: { focus: 'adjacency' },
       lineStyle: { color: 'gradient', opacity: 0.45, curveness: 0.5 },
@@ -299,69 +350,98 @@ function buildSankeyOption(d) {
         fontWeight: 'bold',
         formatter(params) {
           const nd = params.data;
-          let text = nd.displayName + '\n' + fmtKwh(nd.kwh);
-          if (nd.pct !== undefined) text += '\n' + nd.pct.toFixed(1) + ' %';
-          return text;
+          return nd.displayName + '\n' + fmtKwh(nd.kwh);
         },
       },
     }],
   };
 }
 
-/* ── PV pie chart option builder ─────────────────────────────── */
-
-/**
- * Build the ECharts pie/donut option for PV panel production breakdown.
- * Channels with zero production are excluded from the chart.
- */
-function buildPieOption(d) {
-  const isDark     = window.matchMedia('(prefers-color-scheme: dark)').matches;
+/** Build the common dual-axis stacked-bar and autarky line chart. */
+function buildTimeSeriesOption(points, series, lineSeries) {
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isMobile = isMobileViewport();
   const labelColor = isDark ? '#c9d1d9' : '#24292f';
-
-  const channels = [
-    { name: 'PV1', value: d.pv1, color: '#f5a623' },
-    { name: 'PV2', value: d.pv2, color: '#42a5f5' },
-    { name: 'PV3', value: d.pv3, color: '#66bb6a' },
-    { name: 'PV4', value: d.pv4, color: '#ab47bc' },
-  ].filter(c => c.value > 0.001);
+  const gridColor = isDark ? '#30363d' : '#d8dee4';
 
   return {
     backgroundColor: 'transparent',
-    title: {
-      text: 'PV-Erzeugung nach Panel',
-      left: 'center',
-      top: 8,
-      textStyle: { color: labelColor, fontSize: 13, fontWeight: 'bold' },
-    },
+    color: series.map(item => item.color).concat(lineSeries.color),
     tooltip: {
-      trigger: 'item',
+      trigger: 'axis',
       confine: true,
       formatter(params) {
-        return `${params.name}<br/><strong>${fmtKwh(params.value)}</strong><br/>${params.percent} %`;
+        const lines = [`<strong>${params[0].axisValueLabel}</strong>`];
+        params.forEach(item => {
+          const value = item.seriesName === lineSeries.name
+            ? `${Number(item.value).toFixed(1)} %`
+            : fmtKwh(Number(item.value));
+          lines.push(`${item.marker}${item.seriesName}: ${value}`);
+        });
+        return lines.join('<br/>');
       },
     },
     legend: {
-      bottom: '4%',
+      top: 12,
       left: 'center',
+      width: isMobile ? '92%' : undefined,
+      itemGap: isMobile ? 8 : 10,
       textStyle: { color: labelColor, fontSize: 12 },
     },
-    series: [{
-      type: 'pie',
-      radius: ['38%', '68%'],
-      center: ['50%', '50%'],
-      data: channels.map(c => ({
-        name: c.name,
-        value: +c.value.toFixed(3),
-        itemStyle: { color: c.color },
+    // Leave enough room for the legend, which can wrap on narrow screens.
+    grid: {
+      left: 62,
+      right: 58,
+      top: isMobile ? 126 : 100,
+      bottom: 58,
+      containLabel: false,
+    },
+    xAxis: {
+      type: 'category',
+      data: points.map(point => point.label),
+      axisLine: { lineStyle: { color: gridColor } },
+      axisLabel: { color: labelColor, rotate: points.length > 14 ? 45 : 0, interval: 'auto' },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: 'kWh',
+        min: 0,
+        axisLabel: { color: labelColor, formatter: value => `${value} kWh` },
+        nameTextStyle: { color: labelColor },
+        splitLine: { lineStyle: { color: gridColor } },
+      },
+      {
+        type: 'value',
+        name: '%',
+        min: 0,
+        max: 100,
+        axisLabel: { color: labelColor, formatter: value => `${value} %` },
+        nameTextStyle: { color: labelColor },
+        splitLine: { show: false },
+      },
+    ],
+    series: [
+      ...series.map(item => ({
+        name: item.name,
+        type: 'bar',
+        stack: 'energie',
+        emphasis: { focus: 'series' },
+        itemStyle: { color: item.color },
+        data: points.map(point => +point.values[item.key].toFixed(3)),
       })),
-      label: {
-        color: labelColor,
-        formatter: '{b}\n{d} %',
+      {
+        name: lineSeries.name,
+        type: 'line',
+        yAxisIndex: 1,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 7,
+        lineStyle: { width: 3 },
+        itemStyle: { color: lineSeries.color },
+        data: points.map(point => +point[lineSeries.key].toFixed(1)),
       },
-      emphasis: {
-        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,.3)' },
-      },
-    }],
+    ],
   };
 }
 
@@ -385,58 +465,91 @@ function updateNavControls() {
   }
 }
 
-function updateCO2Stat(co2) {
-  const text = co2 >= 1000
-    ? (co2 / 1000).toFixed(2) + ' t CO₂'
-    : co2.toFixed(1) + ' kg CO₂';
-  document.getElementById('co2-value').textContent = text;
+function updateStats(data) {
+  // Autarkiegrad: household consumption supplied by PV or battery.
+  const autarkie = data.eigenverbrauch > 0
+    ? (data.solarZuHaushalt + data.speicherZuHaushalt) / data.eigenverbrauch * 100
+    : 0;
+  // Eigenverbrauchsquote: generated PV energy sent to household or battery.
+  const eigenverbrauch = data.gesamtSolar > 0
+    ? (data.solarZuHaushalt + data.solarZuSpeicher) / data.gesamtSolar * 100
+    : 0;
+  document.getElementById('autarkie-value').textContent = `${autarkie.toFixed(1)} %`;
+  document.getElementById('eigenverbrauch-value').textContent = `${eigenverbrauch.toFixed(1)} %`;
 }
 
 /* ── Chart rendering ─────────────────────────────────────────── */
 
-/**
- * (Re-)render the Sankey and PV pie chart for the current period.
- * Disposes and re-inits ECharts instances only when the OS theme changes.
- */
+function disposeCharts() {
+  [chart, householdChart, pvDistributionChart].forEach(instance => {
+    if (instance) instance.dispose();
+  });
+  chart = null;
+  householdChart = null;
+  pvDistributionChart = null;
+}
+
+function getChartTabs() {
+  return [...document.querySelectorAll('.chart-tab')];
+}
+
+function updateChartTabs() {
+  getChartTabs().forEach(tab => {
+    const name = tab.id.replace('tab-', '');
+    const selected = name === activeChartTab;
+    tab.setAttribute('aria-selected', selected);
+    tab.tabIndex = selected ? 0 : -1;
+    tab.classList.toggle('is-active', selected);
+    document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+  });
+}
+
+function ensureChart(instance, elementId, theme) {
+  return instance || echarts.init(document.getElementById(elementId), theme, { renderer: 'canvas' });
+}
+
+/** (Re-)render the active chart for the current period. */
 function render() {
-  const isDark       = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme        = isDark ? 'dark' : null;
-  const themeChanged = lastTheme !== theme;
-  const el           = document.getElementById('sankey-chart');
+  const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : null;
+  const mobile = isMobileViewport();
+  if (lastTheme !== theme || lastMobile !== mobile) disposeCharts();
+  lastTheme = theme;
+  lastMobile = mobile;
 
-  if (!chart || themeChanged) {
-    if (chart) chart.dispose();
-    chart     = echarts.init(el, theme, { renderer: 'canvas' });
-    lastTheme = theme;
-  }
-
-  const data = viewType === 'total'
-    ? aggregate()
-    : viewType === 'year'
-      ? aggregate(currentYear)
-      : aggregate(currentYear, currentMonth);
-
-  chart.setOption(buildSankeyOption(data), { notMerge: true });
-  chart.resize();
+  const rows = getCurrentRows();
+  const data = aggregateRows(rows);
+  const points = buildTimeSeries(rows);
   updateNavControls();
-  updateCO2Stat(data.co2);
+  updateStats(data);
+  updateChartTabs();
 
-  // ── PV pie chart ─────────────────────────────────────────────
-  const pvWrap = document.getElementById('pv-chart-wrap');
-  const hasPV  = data.pv1 + data.pv2 + data.pv3 + data.pv4 > 0;
-  pvWrap.style.display = hasPV ? '' : 'none';
-  if (hasPV) {
-    const pvEl = document.getElementById('pv-chart');
-    if (!pvChart || themeChanged) {
-      if (pvChart) pvChart.dispose();
-      pvChart = echarts.init(pvEl, theme, { renderer: 'canvas' });
-    }
-    pvChart.setOption(buildPieOption(data), { notMerge: true });
-    pvChart.resize();
-  } else if (pvChart) {
-    pvChart.dispose();
-    pvChart = null;
+  if (activeChartTab === 'sankey') {
+    chart = ensureChart(chart, 'sankey-chart', theme);
+    chart.setOption(buildSankeyOption(data), { notMerge: true });
+    chart.resize();
+  } else if (activeChartTab === 'haushalt') {
+    householdChart = ensureChart(householdChart, 'household-chart', theme);
+    householdChart.setOption(buildTimeSeriesOption(points, [
+      { name: 'Solarstrom zu Haushalt', key: 'solarZuHaushalt', color: '#f5a623' },
+      { name: 'Batterie zu Haushalt', key: 'speicherZuHaushalt', color: '#26c6da' },
+      { name: 'Netzstrom zu Haushalt', key: 'netzZuHaushalt', color: '#5c6bc0' },
+    ], { name: 'Autarkiegrad', key: 'autarkie', color: '#e91e63' }), { notMerge: true });
+    householdChart.resize();
+  } else if (activeChartTab === 'pv-verteilung') {
+    pvDistributionChart = ensureChart(pvDistributionChart, 'pv-distribution-chart', theme);
+    pvDistributionChart.setOption(buildTimeSeriesOption(points, [
+      { name: 'Solarstrom zu Haushalt', key: 'solarZuHaushalt', color: '#f5a623' },
+      { name: 'Solarstrom zu Speicher', key: 'solarZuSpeicher', color: '#26c6da' },
+      { name: 'Solarstrom-Einspeisung', key: 'solarEinspeisung', color: '#42a5f5' },
+    ], { name: 'Eigenverbrauchsquote', key: 'eigenverbrauchsquote', color: '#e91e63' }), { notMerge: true });
+    pvDistributionChart.resize();
   }
+}
+
+function selectChartTab(tab, focus = false) {
+  activeChartTab = tab;
+  render();
+  if (focus) document.getElementById(`tab-${tab}`).focus();
 }
 
 /* ── Period navigation ───────────────────────────────────────── */
@@ -465,11 +578,13 @@ function showUpload() {
   document.getElementById('dashboard').style.display    = 'none';
   document.getElementById('upload-screen').style.display = '';
   hideError();
-  if (chart)   { chart.dispose();   chart   = null; }
-  if (pvChart) { pvChart.dispose(); pvChart = null; }
+  disposeCharts();
   records         = [];
   availableYears  = [];
   availableMonths = [];
+  firstDate       = null;
+  lastDate        = null;
+  activeChartTab  = 'sankey';
 }
 
 function showError(msg) {
@@ -500,6 +615,7 @@ function loadFile(file) {
       viewType     = 'year';
       currentYear  = availableYears[availableYears.length - 1];
       currentMonth = null;
+      activeChartTab = 'sankey';
       document.getElementById('view-type').value = 'year';
 
       showDashboard();
@@ -564,6 +680,30 @@ function init() {
   document.getElementById('btn-prev').addEventListener('click', () => navigate(-1));
   document.getElementById('btn-next').addEventListener('click', () => navigate(+1));
 
+  // ── Chart tabs ───────────────────────────────────────────────
+  getChartTabs().forEach(tab => {
+    const tabName = tab.id.replace('tab-', '');
+    tab.addEventListener('click', () => selectChartTab(tabName));
+    tab.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectChartTab(tabName);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const direction = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
+        const visibleTabs = getChartTabs().filter(candidate => !candidate.hidden);
+        const index = visibleTabs.indexOf(tab);
+        const next = visibleTabs[(index + direction + visibleTabs.length) % visibleTabs.length];
+        selectChartTab(next.id.replace('tab-', ''), true);
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        const visibleTabs = getChartTabs().filter(candidate => !candidate.hidden);
+        const next = e.key === 'Home' ? visibleTabs[0] : visibleTabs.at(-1);
+        selectChartTab(next.id.replace('tab-', ''), true);
+      }
+    });
+  });
+
   // ── View-type switch (Jahr ↔ Monat) ──────────────────────────
   document.getElementById('view-type').addEventListener('change', e => {
     viewType = e.target.value;
@@ -587,14 +727,24 @@ function init() {
   // when the dashboard transitions from display:none to display:flex,
   // which is exactly when ECharts may have been initialised at 0×0.
   const ro = new ResizeObserver(() => {
-    if (chart)   chart.resize();
-    if (pvChart) pvChart.resize();
+    if ((chart || householdChart || pvDistributionChart) && lastMobile !== isMobileViewport()) {
+      render();
+      return;
+    }
+    if (chart && activeChartTab === 'sankey') chart.resize();
+    if (householdChart && activeChartTab === 'haushalt') householdChart.resize();
+    if (pvDistributionChart && activeChartTab === 'pv-verteilung') pvDistributionChart.resize();
   });
-  ro.observe(document.getElementById('chart-wrap'));
-  ro.observe(document.getElementById('pv-chart-wrap'));
+  ['chart-wrap', 'household-chart-wrap', 'pv-distribution-chart-wrap']
+    .forEach(id => ro.observe(document.getElementById(id)));
   window.addEventListener('resize', () => {
-    if (chart)   chart.resize();
-    if (pvChart) pvChart.resize();
+    if ((chart || householdChart || pvDistributionChart) && lastMobile !== isMobileViewport()) {
+      render();
+      return;
+    }
+    if (chart && activeChartTab === 'sankey') chart.resize();
+    if (householdChart && activeChartTab === 'haushalt') householdChart.resize();
+    if (pvDistributionChart && activeChartTab === 'pv-verteilung') pvDistributionChart.resize();
   });
 
   // ── OS theme change: re-init chart with correct ECharts theme ─
