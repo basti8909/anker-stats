@@ -466,11 +466,11 @@ function updateNavControls() {
 }
 
 function updateStats(data) {
-  // Autarkiegrad: household consumption supplied by PV or battery.
+  // Autarkie: household consumption supplied by PV or battery.
   const autarkie = data.eigenverbrauch > 0
     ? (data.solarZuHaushalt + data.speicherZuHaushalt) / data.eigenverbrauch * 100
     : 0;
-  // Eigenverbrauchsquote: generated PV energy sent to household or battery.
+  // Eigenverbrauch: generated PV energy sent to household or battery.
   const eigenverbrauch = data.gesamtSolar > 0
     ? (data.solarZuHaushalt + data.solarZuSpeicher) / data.gesamtSolar * 100
     : 0;
@@ -533,7 +533,7 @@ function render() {
       { name: 'Solarstrom zu Haushalt', key: 'solarZuHaushalt', color: '#f5a623' },
       { name: 'Batterie zu Haushalt', key: 'speicherZuHaushalt', color: '#26c6da' },
       { name: 'Netzstrom zu Haushalt', key: 'netzZuHaushalt', color: '#5c6bc0' },
-    ], { name: 'Autarkiegrad', key: 'autarkie', color: '#e91e63' }), { notMerge: true });
+    ], { name: 'Autarkie', key: 'autarkie', color: '#e91e63' }), { notMerge: true });
     householdChart.resize();
   } else if (activeChartTab === 'pv-verteilung') {
     pvDistributionChart = ensureChart(pvDistributionChart, 'pv-distribution-chart', theme);
@@ -541,7 +541,7 @@ function render() {
       { name: 'Solarstrom zu Haushalt', key: 'solarZuHaushalt', color: '#f5a623' },
       { name: 'Solarstrom zu Speicher', key: 'solarZuSpeicher', color: '#26c6da' },
       { name: 'Solarstrom-Einspeisung', key: 'solarEinspeisung', color: '#42a5f5' },
-    ], { name: 'Eigenverbrauchsquote', key: 'eigenverbrauchsquote', color: '#e91e63' }), { notMerge: true });
+    ], { name: 'Eigenverbrauch', key: 'eigenverbrauchsquote', color: '#e91e63' }), { notMerge: true });
     pvDistributionChart.resize();
   }
 }
