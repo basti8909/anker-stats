@@ -6,9 +6,9 @@
 
 ## Project overview
 
-A **pure static frontend** (no build step, no server required) that reads an Anker Solix energy details CSV export and renders an interactive **Sankey energy-flow diagram** plus time-series views for household supply and PV distribution using Apache ECharts.
+A **pure static frontend** (no build step; a server is optional for local preview) that reads an Anker Solix energy details CSV export and renders an interactive **Sankey energy-flow diagram** plus time-series views for household supply and PV distribution using Apache ECharts.
 
-The user uploads a CSV file via drag-and-drop or file picker. The app parses it entirely in the browser, aggregates the daily rows by year, month, or total range, and draws a Sankey diagram showing how energy flows between sources (PV, Battery, Grid) and sinks (Battery charge, Household, Grid feed-in). Additional time-series views show household supply and the distribution of solar energy. The UI language is German.
+The user uploads a CSV file via drag-and-drop or file picker. The app parses it entirely in the browser, aggregates the daily rows by year, month, or total range, and draws a Sankey diagram showing how energy flows between sources (PV, Battery, Grid) and sinks (Battery charge, Household, Grid feed-in). Additional time-series views show household supply and the distribution of solar energy. The UI supports German and English.
 
 The **Ersparnis** tab adds a persistent electricity price, optional feed-in tariff, and a date-based electricity-price schedule. It evaluates daily records so the selected month, year, or total range is always priced accurately across historical tariff changes.
 
@@ -21,13 +21,13 @@ The **Ersparnis** tab adds a persistent electricity price, optional feed-in tari
 ├── index.html          Main HTML shell (upload screen + dashboard)
 ├── style.css           Styling; auto dark/light via prefers-color-scheme
 ├── app.js              All application logic (parse → aggregate → render)
+├── LICENSE             Apache License 2.0
+├── README.md           Public project documentation
 ├── .github/
-│   ├── AGENTS.md       This file
-│   └── skills/
-│       └── grilling/   Grilling skill for design review
+│   └── AGENTS.md       This file
 └── sample/
     ├── Solar zuhause_Energiedetails_3_Jul_2025_to_3_Jul_2026.csv
-    └── sankey.webp     Reference image of target Sankey design
+    └── Solar zuhause_Energy_Details_14_Jul_2025_to_14_Jul_2026.csv
 ```
 
 ---
@@ -42,7 +42,7 @@ The **Ersparnis** tab adds a persistent electricity price, optional feed-in tari
 | 1   | Column headers |
 | 2+  | Daily data rows (one row per calendar day) |
 
-The app detects the header row by finding the first row where `row[0] === 'Datum'`.
+Header labels are localized by the Anker app and are not interpreted by the parser. The app detects the header row structurally: it must contain all columns used by the application, must not contain a date in column 0, and must be followed by a row whose column 0 contains a valid `DD/MM/YYYY` date. The German file `sample/Solar zuhause_Energiedetails_3_Jul_2025_to_3_Jul_2026.csv` and English file `sample/Solar zuhause_Energy_Details_14_Jul_2025_to_14_Jul_2026.csv` demonstrate the same positional layout with different header labels.
 
 ### Date format
 
@@ -126,11 +126,15 @@ Both CDN scripts are loaded from `cdn.jsdelivr.net`. An internet connection is r
 
 ## Development guidelines
 
-### Adding new chart types
-- Add a new section to `#dashboard` in `index.html`
-- Create a dedicated `buildXxxOption(data)` function in `app.js`
-- Re-use the existing `aggregate()` function; it returns sums for all Sankey and PV columns
+### Adding or changing charts
+- Add a new section and tab wiring to `#dashboard` in `index.html`
+- Re-use `aggregateRows()` and `buildTimeSeries(rows)` for data already represented by daily records
+- Re-use `buildTimeSeriesOption(points, series, lineSeries)` for compatible household and PV time-series views
+- Use a dedicated option builder when the chart has a different structure, as with `buildSankeyOption()` and `buildSavingsOption()`
 - PV panel detail columns (15–18) are intentionally not parsed because the panel-level view was removed.
+
+### Time-series charts
+The household Supply and PV Production tabs both use `buildTimeSeries(rows)` for grouping and the shared `buildTimeSeriesOption(points, series, lineSeries)` renderer. Series definitions select the record keys, labels, colours, and percentage line for each view.
 
 ### Savings tab
 
@@ -161,9 +165,10 @@ The tab uses these parsed CSV values for every individual day:
 - Zero-value links are filtered; disconnected nodes are filtered automatically
 
 ### Internationalisation
-- German month names are in the `DE_MONTHS` constant
-- All UI strings are inline in `index.html` and `app.js`
-- To add English, extract strings to a `LOCALE` object and switch based on a URL parameter or localStorage setting
+- German and English translations live in the `TRANSLATIONS` object in `app.js`
+- UI strings in `index.html` use `data-i18n` attributes; dynamic labels use `t(key)`
+- Add every new user-facing string to both locale objects
+- The selected locale is persisted in `localStorage` under `solix-dashboard-locale`
 
 The app supports three view types controlled by the `#view-type` select:
 - **Jahr** (`viewType = 'year'`): aggregate all records for a given calendar year; navigate with prev/next.

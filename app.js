@@ -6,7 +6,7 @@
 
 /* ── CSV column indices ─────────────────────────────────────────
    Row 0 of the file is a definition comment (quoted string).
-   Row 1 is the actual header: Datum, Eigenverbrauch (kWh), ...
+    Row 1 is the actual localized header: Date/Datum/etc., ...
    Data rows begin at row 2.
    ─────────────────────────────────────────────────────────────── */
 const COL = Object.freeze({
@@ -78,7 +78,7 @@ const TRANSLATIONS = Object.freeze({
     },
     errors: {
       csvOnly: 'Bitte eine CSV-Datei auswählen (.csv).',
-      invalidCsv: 'Keine gültige Anker Solix CSV-Datei – Spalte „Datum" nicht gefunden.',
+      invalidCsv: 'Keine gültige Anker Solix CSV-Datei – erwartete Tabellenstruktur nicht gefunden.',
       noRecords: 'Die CSV-Datei enthält keine auswertbaren Datensätze.',
       read: 'Fehler beim Lesen der Datei.',
     },
@@ -134,7 +134,7 @@ const TRANSLATIONS = Object.freeze({
     },
     errors: {
       csvOnly: 'Please choose a CSV file (.csv).',
-      invalidCsv: 'Not a valid Anker Solix CSV file: column "Datum" was not found.',
+      invalidCsv: 'Not a valid Anker Solix CSV file: expected table structure was not found.',
       noRecords: 'The CSV file contains no usable records.',
       read: 'Error reading the file.',
     },
@@ -346,6 +346,19 @@ function getExportLabel(useFeedInTariff) {
 
 /* ── CSV Parsing ────────────────────────────────────────────── */
 
+function parseCsvDate(raw) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(raw ?? '').trim());
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth) return null;
+
+  return { day, month, year };
+}
+
 /**
  * Parse the Anker Solix energy details CSV text.
  * Populates the global `records`, `availableYears`, `availableMonths`.
@@ -354,9 +367,12 @@ function getExportLabel(useFeedInTariff) {
 function parseCSV(text) {
   const { data: rows } = Papa.parse(text, { skipEmptyLines: true });
 
-  // The first CSV row is a definition comment (quoted); the real header
-  // is the first row whose first cell is exactly 'Datum'.
-  const headerIdx = rows.findIndex(r => r[0] === 'Datum');
+  // Header labels are localized; the stable contract is column count and a date row after it.
+  const headerIdx = rows.findIndex((row, index) =>
+    row.length > COL.SOLAR_EINSPEISUNG
+    && parseCsvDate(row[COL.DATUM]) === null
+    && parseCsvDate(rows[index + 1]?.[COL.DATUM]) !== null
+  );
   if (headerIdx === -1) {
     throw new Error(t('errors.invalidCsv'));
   }
@@ -364,19 +380,12 @@ function parseCSV(text) {
   const parsed = [];
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
-    const raw = row[COL.DATUM] ?? '';
-
-    // Date format: DD/MM/YYYY
-    const parts = raw.split('/');
-    if (parts.length !== 3) continue;
-    const day   = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10);
-    const year  = parseInt(parts[2], 10);
-    if (isNaN(day) || isNaN(month) || isNaN(year)) continue;
+    const date = parseCsvDate(row[COL.DATUM]);
+    if (!date) continue;
 
     const n = idx => parseFloat(row[idx]) || 0;
     parsed.push({
-      date: { day, month, year },
+      date,
       eigenverbrauch:     n(COL.EIGENVERBRAUCH),
       netzImport:         n(COL.NETZIMPORT),
       netzZuHaushalt:     n(COL.NETZ_ZU_HAUSHALT),
