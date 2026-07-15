@@ -10,6 +10,8 @@ A **pure static frontend** (no build step, no server required) that reads an Ank
 
 The user uploads a CSV file via drag-and-drop or file picker. The app parses it entirely in the browser, aggregates the daily rows by year, month, or total range, and draws a Sankey diagram showing how energy flows between sources (PV, Battery, Grid) and sinks (Battery charge, Household, Grid feed-in). Additional time-series views show household supply and the distribution of solar energy. The UI language is German.
 
+The **Ersparnis** tab adds a persistent electricity price, optional feed-in tariff, and a date-based electricity-price schedule. It evaluates daily records so the selected month, year, or total range is always priced accurately across historical tariff changes.
+
 ---
 
 ## File structure
@@ -129,6 +131,22 @@ Both CDN scripts are loaded from `cdn.jsdelivr.net`. An internet connection is r
 - Create a dedicated `buildXxxOption(data)` function in `app.js`
 - Re-use the existing `aggregate()` function; it returns sums for all Sankey and PV columns
 - PV panel detail columns (15–18) are intentionally not parsed because the panel-level view was removed.
+
+### Savings tab
+
+The tab uses these parsed CSV values for every individual day:
+
+| Display value | Formula |
+|---------------|---------|
+| PV | `solarZuHaushalt × electricityPriceCt / 100` |
+| Battery | `speicherZuHaushalt × electricityPriceCt / 100` |
+| PV export with `feedInTariffCt = 0` | `solarEinspeisung × electricityPriceCt / 100` |
+| PV export with `feedInTariffCt > 0` | `solarEinspeisung × feedInTariffCt / 100` |
+
+- Price state is stored in `localStorage` under `solix-dashboard-savings-v1` as `currentPriceCt`, `feedInTariffCt`, and `historicalPrices`.
+- The default electricity price is `30.0` ct/kWh; the default feed-in tariff is `0.0` ct/kWh. Both must be non-negative.
+- A price-schedule entry has an exclusive `until` date: an entry ending `2025-03-01` applies to days before 1 March 2025. After the final entry, the current electricity price applies.
+- With a zero feed-in tariff, export remains grey and is excluded from the donut centre total. With a positive tariff, export has its own colour and is included in the centre total.
 
 ### Adding new columns from a future Anker export
 1. Add the column index to the `COL` constant in `app.js`

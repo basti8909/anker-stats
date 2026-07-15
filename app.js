@@ -26,10 +26,124 @@ const COL = Object.freeze({
   SOLAR_EINSPEISUNG:    13,
 });
 
-const DE_MONTHS = Object.freeze([
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
-]);
+const TRANSLATIONS = Object.freeze({
+  de: {
+    months: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
+    upload: {
+      subtitle: 'Energiediagramme aus CSV-Export',
+      dropZone: 'CSV-Datei hier ablegen',
+      or: 'oder',
+      browse: 'Datei auswählen',
+      dropZoneAria: 'CSV-Datei auswählen oder hier ablegen',
+    },
+    dashboard: {
+      reload: 'Andere Datei laden',
+      viewAria: 'Ansicht wählen',
+      year: 'Jahr',
+      month: 'Monat',
+      total: 'Gesamt',
+      previous: 'Vorheriger Zeitraum',
+      next: 'Nächster Zeitraum',
+      charts: 'Diagramme',
+      energyFlow: 'Energiefluss',
+      household: 'Versorgung',
+      production: 'Erzeugung',
+      savings: 'Ersparnis',
+      autonomy: 'Autarkie',
+      selfConsumption: 'Eigenverbrauch',
+      language: 'Sprache',
+      german: 'Deutsch',
+      english: 'Englisch',
+    },
+    energy: { pv: 'PV', battery: 'Batterie', grid: 'Netz', household: 'Haushalt' },
+    savings: {
+      electricityPrice: 'Strompreis',
+      feedInTariff: 'Einspeisevergütung',
+      ctPerKwh: 'ct/kWh',
+      priceSchedule: 'Strompreis nach Zeitraum',
+      until: 'Bis',
+      price: 'Preis',
+      addPeriod: 'Zeitraum hinzufügen',
+      removePeriod: 'Zeitraum entfernen',
+      pvExport: 'PV export',
+      unused: 'Nicht genutzt',
+      totalSavings: 'Ersparnis',
+    },
+    series: {
+      solarToHousehold: 'Solarstrom zu Haushalt',
+      batteryToHousehold: 'Batterie zu Haushalt',
+      gridToHousehold: 'Netzstrom zu Haushalt',
+      solarToBattery: 'Solarstrom zu Speicher',
+      solarFeedIn: 'Solarstrom-Einspeisung',
+    },
+    errors: {
+      csvOnly: 'Bitte eine CSV-Datei auswählen (.csv).',
+      invalidCsv: 'Keine gültige Anker Solix CSV-Datei – Spalte „Datum" nicht gefunden.',
+      noRecords: 'Die CSV-Datei enthält keine auswertbaren Datensätze.',
+      read: 'Fehler beim Lesen der Datei.',
+    },
+  },
+  en: {
+    months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    upload: {
+      subtitle: 'Energy diagrams from CSV export',
+      dropZone: 'Drop CSV file here',
+      or: 'or',
+      browse: 'Choose file',
+      dropZoneAria: 'Choose or drop a CSV file here',
+    },
+    dashboard: {
+      reload: 'Load another file',
+      viewAria: 'Choose view',
+      year: 'Year',
+      month: 'Month',
+      total: 'Total',
+      previous: 'Previous period',
+      next: 'Next period',
+      charts: 'Charts',
+      energyFlow: 'Energy flow',
+      household: 'Supply',
+      production: 'Production',
+      savings: 'Savings',
+      autonomy: 'Self-sufficiency',
+      selfConsumption: 'Self-consumption',
+      language: 'Language',
+      german: 'German',
+      english: 'English',
+    },
+    energy: { pv: 'PV', battery: 'Battery', grid: 'Grid', household: 'Household' },
+    savings: {
+      electricityPrice: 'Electricity price',
+      feedInTariff: 'Feed-in tariff',
+      ctPerKwh: 'ct/kWh',
+      priceSchedule: 'Electricity price by period',
+      until: 'Until',
+      price: 'Price',
+      addPeriod: 'Add period',
+      removePeriod: 'Remove period',
+      pvExport: 'PV export',
+      unused: 'Unused',
+      totalSavings: 'Savings',
+    },
+    series: {
+      solarToHousehold: 'Solar to household',
+      batteryToHousehold: 'Battery to household',
+      gridToHousehold: 'Grid to household',
+      solarToBattery: 'Solar to battery',
+      solarFeedIn: 'Solar feed-in',
+    },
+    errors: {
+      csvOnly: 'Please choose a CSV file (.csv).',
+      invalidCsv: 'Not a valid Anker Solix CSV file: column "Datum" was not found.',
+      noRecords: 'The CSV file contains no usable records.',
+      read: 'Error reading the file.',
+    },
+  },
+});
+
+const SUPPORTED_LOCALES = Object.freeze(Object.keys(TRANSLATIONS));
+const LOCALE_STORAGE_KEY = 'solix-dashboard-locale';
+const SAVINGS_STORAGE_KEY = 'solix-dashboard-savings-v1';
 
 const MOBILE_BREAKPOINT = 600;
 
@@ -40,12 +154,18 @@ let availableMonths = [];     // Sorted {year, month}[]
 let firstDate       = null;   // Earliest date present in the CSV
 let lastDate        = null;   // Latest date present in the CSV
 let viewType        = 'year'; // 'year' | 'month' | 'total'
+let currentLocale   = 'de';
 let currentYear     = null;
 let currentMonth    = null;   // 1–12 (only used in 'month' view)
 let activeChartTab   = 'sankey';
 let chart           = null;   // ECharts instance (Sankey)
 let householdChart  = null;   // ECharts instance (household supply)
 let pvDistributionChart = null; // ECharts instance (PV distribution)
+let savingsChart = null; // ECharts instance (savings donut)
+let currentPriceCt = 30;
+let feedInTariffCt = 0;
+let historicalPrices = [];
+let priceScheduleDrafts = [];
 let lastTheme;
 let lastMobile;
 
@@ -53,24 +173,175 @@ function isMobileViewport() {
   return window.innerWidth <= MOBILE_BREAKPOINT;
 }
 
+function t(key) {
+  const value = key.split('.').reduce((result, part) => result?.[part], TRANSLATIONS[currentLocale]);
+  return value ?? key.split('.').reduce((result, part) => result?.[part], TRANSLATIONS.de) ?? key;
+}
+
+function normalizeLocale(locale) {
+  const language = String(locale || '').toLowerCase().split('-')[0];
+  return SUPPORTED_LOCALES.includes(language) ? language : null;
+}
+
+function detectLocale() {
+  try {
+    const stored = normalizeLocale(localStorage.getItem(LOCALE_STORAGE_KEY));
+    if (stored) return stored;
+  } catch (_) {
+    // Storage can be unavailable in private or restricted browsing contexts.
+  }
+  const browserLocales = navigator.languages?.length ? navigator.languages : [navigator.language];
+  return browserLocales.map(normalizeLocale).find(Boolean) || 'de';
+}
+
+function applyTranslations() {
+  document.documentElement.lang = currentLocale;
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  document.querySelectorAll('.language-select').forEach(select => {
+    select.value = currentLocale;
+  });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(element => {
+    element.setAttribute('aria-label', t(element.dataset.i18nAriaLabel));
+  });
+}
+
+function setLocale(locale, persist = true) {
+  const normalized = normalizeLocale(locale);
+  if (!normalized) return;
+  currentLocale = normalized;
+  if (persist) {
+    try { localStorage.setItem(LOCALE_STORAGE_KEY, currentLocale); } catch (_) { /* Ignore unavailable storage. */ }
+  }
+  applyTranslations();
+  updateSavingsInputs();
+  renderPriceSchedule();
+  if (records.length > 0) render();
+}
+
 /* ── Utilities ──────────────────────────────────────────────── */
 
 /** Format kWh value; switches to MWh above 1000 kWh. */
 function fmtKwh(kwh) {
-  if (kwh >= 1000) return (kwh / 1000).toFixed(2) + ' MWh';
-  return kwh.toFixed(2) + ' kWh';
+  const format = value => new Intl.NumberFormat(currentLocale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+  if (kwh >= 1000) return format(kwh / 1000) + ' MWh';
+  return format(kwh) + ' kWh';
 }
 
 /** Format the current period as a human-readable string. */
 function fmtPeriod() {
   if (viewType === 'year') return String(currentYear);
-  if (viewType === 'month') return `${DE_MONTHS[currentMonth - 1]} ${currentYear}`;
+  if (viewType === 'month') return `${t('months')[currentMonth - 1]} ${currentYear}`;
   if (!firstDate || !lastDate) return '—';
   return `${fmtDate(firstDate)} - ${fmtDate(lastDate)}`;
 }
 
 function fmtDate(date) {
-  return `${date.day}.${date.month}.${date.year}`;
+  return currentLocale === 'en'
+    ? `${date.month}/${date.day}/${date.year}`
+    : `${date.day}.${date.month}.${date.year}`;
+}
+
+function fmtCurrency(value) {
+  return new Intl.NumberFormat(currentLocale, {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function fmtPriceCt(value) {
+  return new Intl.NumberFormat(currentLocale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function parsePriceCt(value) {
+  const normalized = String(value).trim().replace(',', '.');
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function parseInputDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const timestamp = Date.UTC(year, month - 1, day);
+  const date = new Date(timestamp);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+    ? timestamp
+    : null;
+}
+
+function loadSavingsSettings() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SAVINGS_STORAGE_KEY) || '{}');
+    const storedPrice = parsePriceCt(stored.currentPriceCt);
+    const storedTariff = parsePriceCt(stored.feedInTariffCt);
+    currentPriceCt = storedPrice ?? 30;
+    feedInTariffCt = storedTariff ?? 0;
+    historicalPrices = Array.isArray(stored.historicalPrices)
+      ? stored.historicalPrices
+        .map(item => ({ until: item?.until, priceCt: parsePriceCt(item?.priceCt) }))
+        .filter(item => parseInputDate(item.until) !== null && item.priceCt !== null)
+        .sort((first, second) => first.until.localeCompare(second.until))
+      : [];
+    historicalPrices = historicalPrices.filter((item, index, items) => index === 0 || item.until !== items[index - 1].until);
+  } catch (_) {
+    currentPriceCt = 30;
+    feedInTariffCt = 0;
+    historicalPrices = [];
+  }
+  priceScheduleDrafts = historicalPrices.map(item => ({ until: item.until, price: fmtPriceCt(item.priceCt) }));
+}
+
+function saveSavingsSettings() {
+  try {
+    localStorage.setItem(SAVINGS_STORAGE_KEY, JSON.stringify({
+      currentPriceCt,
+      feedInTariffCt,
+      historicalPrices,
+    }));
+  } catch (_) {
+    // Saving remains optional when local storage is unavailable.
+  }
+}
+
+function getPriceForDate(date) {
+  const timestamp = Date.UTC(date.year, date.month - 1, date.day);
+  const pricePeriod = historicalPrices.find(period => timestamp < parseInputDate(period.until));
+  return pricePeriod ? pricePeriod.priceCt : currentPriceCt;
+}
+
+function calculateSavings(rows) {
+  const useFeedInTariff = feedInTariffCt > 0;
+  const totals = { pv: 0, battery: 0, export: 0 };
+
+  rows.forEach(row => {
+    const priceCt = getPriceForDate(row.date);
+    totals.pv += row.solarZuHaushalt * priceCt / 100;
+    totals.battery += row.speicherZuHaushalt * priceCt / 100;
+    totals.export += row.solarEinspeisung * (useFeedInTariff ? feedInTariffCt : priceCt) / 100;
+  });
+
+  return {
+    ...totals,
+    useFeedInTariff,
+    total: totals.pv + totals.battery + (useFeedInTariff ? totals.export : 0),
+  };
+}
+
+function getExportLabel(useFeedInTariff) {
+  return t(useFeedInTariff ? 'savings.pvExport' : 'savings.unused');
 }
 
 /* ── CSV Parsing ────────────────────────────────────────────── */
@@ -87,9 +358,7 @@ function parseCSV(text) {
   // is the first row whose first cell is exactly 'Datum'.
   const headerIdx = rows.findIndex(r => r[0] === 'Datum');
   if (headerIdx === -1) {
-    throw new Error(
-      'Keine gültige Anker Solix CSV-Datei – Spalte „Datum" nicht gefunden.'
-    );
+    throw new Error(t('errors.invalidCsv'));
   }
 
   const parsed = [];
@@ -122,7 +391,7 @@ function parseCSV(text) {
   }
 
   if (parsed.length === 0) {
-    throw new Error('Die CSV-Datei enthält keine auswertbaren Datensätze.');
+    throw new Error(t('errors.noRecords'));
   }
 
   records = parsed;
@@ -220,7 +489,7 @@ function buildTimeSeries(rows) {
     return {
       label: byDay
         ? `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.`
-        : `${DE_MONTHS[month - 1].slice(0, 3)} ${year}`,
+        : `${t('months')[month - 1].slice(0, 3)} ${year}`,
       values,
       autarkie,
       eigenverbrauchsquote,
@@ -256,42 +525,42 @@ function buildSankeyOption(d) {
   const allNodes = [
     {
       name: 'pv',
-      displayName: 'PV',
+      displayName: t('energy.pv'),
       kwh: d.solarZuHaushalt + d.solarZuSpeicher + d.solarEinspeisung,
       itemStyle: { color: '#f5a623' },
       label: { position: isMobile ? 'top' : 'left' },
     },
     {
       name: 'bat_out',
-      displayName: 'Batterie',
+      displayName: t('energy.battery'),
       kwh: d.speicherZuHaushalt,
       itemStyle: { color: '#26c6da' },
       label: { position: isMobile ? 'top' : 'left' },
     },
     {
       name: 'netz_in',
-      displayName: 'Netz',
+      displayName: t('energy.grid'),
       kwh: d.netzZuHaushalt + d.netzZuSpeicher,
       itemStyle: { color: '#5c6bc0' },
       label: { position: isMobile ? 'top' : 'left' },
     },
     {
       name: 'bat_in',
-      displayName: 'Batterie',
+      displayName: t('energy.battery'),
       kwh: d.solarZuSpeicher + d.netzZuSpeicher,
       itemStyle: { color: '#26c6da' },
       label: { position: isMobile ? 'bottom' : 'right' },
     },
     {
       name: 'haushalt',
-      displayName: 'Haushalt',
+      displayName: t('energy.household'),
       kwh: d.solarZuHaushalt + d.speicherZuHaushalt + d.netzZuHaushalt,
       itemStyle: { color: '#ab47bc' },
       label: { position: isMobile ? 'bottom' : 'right' },
     },
     {
       name: 'netz_out',
-      displayName: 'Netz',
+      displayName: t('energy.grid'),
       kwh: d.solarEinspeisung,
       itemStyle: { color: '#42a5f5' },
       label: { position: isMobile ? 'bottom' : 'right' },
@@ -445,6 +714,35 @@ function buildTimeSeriesOption(points, series, lineSeries) {
   };
 }
 
+function buildSavingsOption(savings) {
+  const exportColor = savings.useFeedInTariff ? '#5c6bc0' : '#8b949e';
+  const exportLabel = getExportLabel(savings.useFeedInTariff);
+  return {
+    backgroundColor: 'transparent',
+    color: ['#f5a623', '#26c6da', exportColor],
+    tooltip: {
+      trigger: 'item',
+      confine: true,
+      formatter: params => `<strong>${params.name}</strong><br/>${fmtCurrency(params.value)}`,
+    },
+    series: [{
+      type: 'pie',
+      radius: ['58%', '78%'],
+      center: ['50%', '50%'],
+      padAngle: 3,
+      stillShowZeroSum: false,
+      label: { show: false },
+      labelLine: { show: false },
+      itemStyle: { borderRadius: 3 },
+      data: [
+        { name: t('energy.pv'), value: +savings.pv.toFixed(4) },
+        { name: t('energy.battery'), value: +savings.battery.toFixed(4) },
+        { name: exportLabel, value: +savings.export.toFixed(4), itemStyle: { color: exportColor } },
+      ],
+    }],
+  };
+}
+
 /* ── UI updates ─────────────────────────────────────────────── */
 
 function updateNavControls() {
@@ -478,15 +776,119 @@ function updateStats(data) {
   document.getElementById('eigenverbrauch-value').textContent = `${eigenverbrauch.toFixed(1)} %`;
 }
 
+function updateSavingsInputs() {
+  document.getElementById('electricity-price').value = fmtPriceCt(currentPriceCt);
+  document.getElementById('feed-in-tariff').value = fmtPriceCt(feedInTariffCt);
+}
+
+function renderPriceSchedule() {
+  const container = document.getElementById('price-schedule-rows');
+  container.replaceChildren();
+
+  priceScheduleDrafts.forEach((draft, index) => {
+    const row = document.createElement('div');
+    row.className = 'price-schedule-row';
+
+    const until = document.createElement('input');
+    until.type = 'date';
+    until.value = draft.until;
+    until.dataset.index = index;
+    until.dataset.field = 'until';
+    until.setAttribute('aria-label', t('savings.until'));
+
+    const priceWrap = document.createElement('span');
+    priceWrap.className = 'price-input-wrap';
+    const price = document.createElement('input');
+    price.type = 'text';
+    price.inputMode = 'decimal';
+    price.autocomplete = 'off';
+    price.value = draft.price;
+    price.dataset.index = index;
+    price.dataset.field = 'price';
+    price.setAttribute('aria-label', t('savings.price'));
+    const unit = document.createElement('span');
+    unit.textContent = t('savings.ctPerKwh');
+    priceWrap.append(price, unit);
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn-remove-price';
+    remove.dataset.removeIndex = index;
+    remove.setAttribute('aria-label', t('savings.removePeriod'));
+    remove.textContent = 'x';
+
+    row.append(until, priceWrap, remove);
+    container.append(row);
+  });
+  syncPriceSchedule(false);
+}
+
+function syncPriceSchedule(persist = true) {
+  const candidates = priceScheduleDrafts.map((draft, index) => ({
+    index,
+    until: draft.until,
+    timestamp: parseInputDate(draft.until),
+    priceCt: parsePriceCt(draft.price),
+  }));
+  const duplicates = new Set();
+  candidates.forEach(candidate => {
+    if (candidate.timestamp === null) return;
+    if (candidates.some(other => other.index !== candidate.index && other.until === candidate.until)) {
+      duplicates.add(candidate.index);
+    }
+  });
+
+  historicalPrices = candidates
+    .filter(candidate => candidate.timestamp !== null && candidate.priceCt !== null && !duplicates.has(candidate.index))
+    .sort((first, second) => first.timestamp - second.timestamp)
+    .map(candidate => ({ until: candidate.until, priceCt: candidate.priceCt }));
+
+  candidates.forEach(candidate => {
+    const valid = candidate.timestamp !== null && candidate.priceCt !== null && !duplicates.has(candidate.index);
+    const row = document.querySelector(`.price-schedule-row:nth-child(${candidate.index + 1})`);
+    if (row) {
+      row.classList.toggle('is-invalid', !valid && (candidate.until || candidate.price));
+      row.querySelectorAll('input').forEach(input => input.setAttribute('aria-invalid', String(!valid && (candidate.until || candidate.price))));
+    }
+  });
+
+  if (persist) saveSavingsSettings();
+}
+
+function updateSavingsDisplay(savings) {
+  document.getElementById('savings-pv-value').textContent = fmtCurrency(savings.pv);
+  document.getElementById('savings-battery-value').textContent = fmtCurrency(savings.battery);
+  document.getElementById('savings-export-value').textContent = fmtCurrency(savings.export);
+  document.querySelector('#savings-export-item dt').textContent = getExportLabel(savings.useFeedInTariff);
+  document.getElementById('savings-export-item').classList.toggle('is-tariff', savings.useFeedInTariff);
+  document.getElementById('savings-total').textContent = `${t('savings.totalSavings')}\n${fmtCurrency(savings.total)}`;
+}
+
+function setSavingsPrice(input, type) {
+  const priceCt = parsePriceCt(input.value);
+  if (priceCt === null) {
+    input.value = fmtPriceCt(type === 'electricity' ? currentPriceCt : feedInTariffCt);
+    input.setAttribute('aria-invalid', 'true');
+    return;
+  }
+  input.setAttribute('aria-invalid', 'false');
+  if (type === 'electricity') currentPriceCt = priceCt;
+  else feedInTariffCt = priceCt;
+  input.value = fmtPriceCt(priceCt);
+  saveSavingsSettings();
+  if (records.length > 0 && activeChartTab === 'ersparnis') render();
+}
+
 /* ── Chart rendering ─────────────────────────────────────────── */
 
 function disposeCharts() {
-  [chart, householdChart, pvDistributionChart].forEach(instance => {
+  [chart, householdChart, pvDistributionChart, savingsChart].forEach(instance => {
     if (instance) instance.dispose();
   });
   chart = null;
   householdChart = null;
   pvDistributionChart = null;
+  savingsChart = null;
 }
 
 function getChartTabs() {
@@ -530,19 +932,25 @@ function render() {
   } else if (activeChartTab === 'haushalt') {
     householdChart = ensureChart(householdChart, 'household-chart', theme);
     householdChart.setOption(buildTimeSeriesOption(points, [
-      { name: 'Solarstrom zu Haushalt', key: 'solarZuHaushalt', color: '#f5a623' },
-      { name: 'Batterie zu Haushalt', key: 'speicherZuHaushalt', color: '#26c6da' },
-      { name: 'Netzstrom zu Haushalt', key: 'netzZuHaushalt', color: '#5c6bc0' },
-    ], { name: 'Autarkie', key: 'autarkie', color: '#e91e63' }), { notMerge: true });
+      { name: t('series.solarToHousehold'), key: 'solarZuHaushalt', color: '#f5a623' },
+      { name: t('series.batteryToHousehold'), key: 'speicherZuHaushalt', color: '#26c6da' },
+      { name: t('series.gridToHousehold'), key: 'netzZuHaushalt', color: '#5c6bc0' },
+    ], { name: t('dashboard.autonomy'), key: 'autarkie', color: '#e91e63' }), { notMerge: true });
     householdChart.resize();
   } else if (activeChartTab === 'pv-verteilung') {
     pvDistributionChart = ensureChart(pvDistributionChart, 'pv-distribution-chart', theme);
     pvDistributionChart.setOption(buildTimeSeriesOption(points, [
-      { name: 'Solarstrom zu Haushalt', key: 'solarZuHaushalt', color: '#f5a623' },
-      { name: 'Solarstrom zu Speicher', key: 'solarZuSpeicher', color: '#26c6da' },
-      { name: 'Solarstrom-Einspeisung', key: 'solarEinspeisung', color: '#42a5f5' },
-    ], { name: 'Eigenverbrauch', key: 'eigenverbrauchsquote', color: '#e91e63' }), { notMerge: true });
+      { name: t('series.solarToHousehold'), key: 'solarZuHaushalt', color: '#f5a623' },
+      { name: t('series.solarToBattery'), key: 'solarZuSpeicher', color: '#26c6da' },
+      { name: t('series.solarFeedIn'), key: 'solarEinspeisung', color: '#42a5f5' },
+    ], { name: t('dashboard.selfConsumption'), key: 'eigenverbrauchsquote', color: '#e91e63' }), { notMerge: true });
     pvDistributionChart.resize();
+  } else if (activeChartTab === 'ersparnis') {
+    const savings = calculateSavings(rows);
+    updateSavingsDisplay(savings);
+    savingsChart = ensureChart(savingsChart, 'ersparnis-chart', theme);
+    savingsChart.setOption(buildSavingsOption(savings), { notMerge: true });
+    savingsChart.resize();
   }
 }
 
@@ -584,6 +992,9 @@ function showUpload() {
   availableMonths = [];
   firstDate       = null;
   lastDate        = null;
+  viewType        = 'year';
+  currentYear     = null;
+  currentMonth    = null;
   activeChartTab  = 'sankey';
 }
 
@@ -602,7 +1013,7 @@ function hideError() {
 function loadFile(file) {
   if (!file) return;
   if (!file.name.toLowerCase().endsWith('.csv')) {
-    showError('Bitte eine CSV-Datei auswählen (.csv).');
+    showError(t('errors.csvOnly'));
     return;
   }
 
@@ -611,12 +1022,12 @@ function loadFile(file) {
     try {
       parseCSV(target.result);
 
-      // Default view: latest year, year view
-      viewType     = 'year';
+      // Default view: all available data
+      viewType     = 'total';
       currentYear  = availableYears[availableYears.length - 1];
       currentMonth = null;
       activeChartTab = 'sankey';
-      document.getElementById('view-type').value = 'year';
+      document.getElementById('view-type').value = 'total';
 
       showDashboard();
       // Use setTimeout(0) so the browser completes the display:flex reflow
@@ -626,15 +1037,25 @@ function loadFile(file) {
       showError(err.message);
     }
   };
-  reader.onerror = () => showError('Fehler beim Lesen der Datei.');
+  reader.onerror = () => showError(t('errors.read'));
   reader.readAsText(file, 'utf-8');
 }
 
 /* ── Initialisation ──────────────────────────────────────────── */
 
 function init() {
+  currentLocale = detectLocale();
+  applyTranslations();
+  loadSavingsSettings();
+  updateSavingsInputs();
+  renderPriceSchedule();
+
   const fileInput = document.getElementById('file-input');
   const dropZone  = document.getElementById('drop-zone');
+
+  document.querySelectorAll('.language-select').forEach(languageSelect => {
+    languageSelect.addEventListener('change', e => setLocale(e.target.value));
+  });
 
   // ── Browse button via hidden file input ──────────────────────
   fileInput.addEventListener('change', e => {
@@ -679,6 +1100,42 @@ function init() {
   // ── Period navigation ─────────────────────────────────────────
   document.getElementById('btn-prev').addEventListener('click', () => navigate(-1));
   document.getElementById('btn-next').addEventListener('click', () => navigate(+1));
+
+  // ── Savings controls ─────────────────────────────────────────
+  document.getElementById('electricity-price').addEventListener('change', event => {
+    setSavingsPrice(event.currentTarget, 'electricity');
+  });
+  document.getElementById('feed-in-tariff').addEventListener('change', event => {
+    setSavingsPrice(event.currentTarget, 'feedIn');
+  });
+  document.getElementById('btn-add-price-period').addEventListener('click', () => {
+    priceScheduleDrafts.push({ until: '', price: '' });
+    renderPriceSchedule();
+  });
+  document.getElementById('price-schedule-rows').addEventListener('change', event => {
+    const input = event.target;
+    const index = Number(input.dataset.index);
+    const field = input.dataset.field;
+    if (!Number.isInteger(index) || !field || !priceScheduleDrafts[index]) return;
+    priceScheduleDrafts[index][field] = input.value;
+    if (field === 'price') {
+      const priceCt = parsePriceCt(input.value);
+      if (priceCt !== null) {
+        priceScheduleDrafts[index].price = fmtPriceCt(priceCt);
+        input.value = priceScheduleDrafts[index].price;
+      }
+    }
+    syncPriceSchedule();
+    if (records.length > 0 && activeChartTab === 'ersparnis') render();
+  });
+  document.getElementById('price-schedule-rows').addEventListener('click', event => {
+    const button = event.target.closest('[data-remove-index]');
+    if (!button) return;
+    priceScheduleDrafts.splice(Number(button.dataset.removeIndex), 1);
+    renderPriceSchedule();
+    saveSavingsSettings();
+    if (records.length > 0 && activeChartTab === 'ersparnis') render();
+  });
 
   // ── Chart tabs ───────────────────────────────────────────────
   getChartTabs().forEach(tab => {
@@ -727,24 +1184,26 @@ function init() {
   // when the dashboard transitions from display:none to display:flex,
   // which is exactly when ECharts may have been initialised at 0×0.
   const ro = new ResizeObserver(() => {
-    if ((chart || householdChart || pvDistributionChart) && lastMobile !== isMobileViewport()) {
+    if ((chart || householdChart || pvDistributionChart || savingsChart) && lastMobile !== isMobileViewport()) {
       render();
       return;
     }
     if (chart && activeChartTab === 'sankey') chart.resize();
     if (householdChart && activeChartTab === 'haushalt') householdChart.resize();
     if (pvDistributionChart && activeChartTab === 'pv-verteilung') pvDistributionChart.resize();
+    if (savingsChart && activeChartTab === 'ersparnis') savingsChart.resize();
   });
-  ['chart-wrap', 'household-chart-wrap', 'pv-distribution-chart-wrap']
+  ['chart-wrap', 'household-chart-wrap', 'pv-distribution-chart-wrap', 'ersparnis-chart-wrap']
     .forEach(id => ro.observe(document.getElementById(id)));
   window.addEventListener('resize', () => {
-    if ((chart || householdChart || pvDistributionChart) && lastMobile !== isMobileViewport()) {
+    if ((chart || householdChart || pvDistributionChart || savingsChart) && lastMobile !== isMobileViewport()) {
       render();
       return;
     }
     if (chart && activeChartTab === 'sankey') chart.resize();
     if (householdChart && activeChartTab === 'haushalt') householdChart.resize();
     if (pvDistributionChart && activeChartTab === 'pv-verteilung') pvDistributionChart.resize();
+    if (savingsChart && activeChartTab === 'ersparnis') savingsChart.resize();
   });
 
   // ── OS theme change: re-init chart with correct ECharts theme ─

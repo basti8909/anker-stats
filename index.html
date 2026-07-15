@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solix Dashboard</title>
-  <link rel="stylesheet" href="style.css?v=11" />
+  <link rel="stylesheet" href="style.css?v=13" />
   <!-- Apache ECharts 5.5.1 -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   <!-- PapaParse 5.4.1 -->
@@ -19,9 +19,16 @@
         <span class="brand-icon">⚡</span>
         <h1>Solix Dashboard</h1>
       </div>
-      <p class="upload-subtitle">Energiediagramme aus CSV-Export</p>
+      <p class="upload-subtitle" data-i18n="upload.subtitle">Energiediagramme aus CSV-Export</p>
+      <label class="language-control">
+        <span data-i18n="dashboard.language">Sprache</span>
+        <select class="language-select" data-i18n-aria-label="dashboard.language" aria-label="Sprache">
+          <option value="de" data-i18n="dashboard.german">Deutsch</option>
+          <option value="en" data-i18n="dashboard.english">Englisch</option>
+        </select>
+      </label>
 
-      <div id="drop-zone" role="button" tabindex="0" aria-label="CSV-Datei auswählen oder hier ablegen">
+      <div id="drop-zone" role="button" tabindex="0" data-i18n-aria-label="upload.dropZoneAria" aria-label="CSV-Datei auswählen oder hier ablegen">
         <svg class="drop-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
           fill="none" stroke="currentColor" stroke-width="1.5"
           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -29,9 +36,9 @@
           <polyline points="17 8 12 3 7 8"/>
           <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        <p class="drop-text">CSV-Datei hier ablegen</p>
-        <p class="drop-hint">oder</p>
-        <label class="btn-browse" for="file-input">Datei auswählen</label>
+        <p class="drop-text" data-i18n="upload.dropZone">CSV-Datei hier ablegen</p>
+        <p class="drop-hint" data-i18n="upload.or">oder</p>
+        <label class="btn-browse" for="file-input" data-i18n="upload.browse">Datei auswählen</label>
         <input type="file" id="file-input" accept=".csv" />
       </div>
 
@@ -47,29 +54,40 @@
         <span class="brand-icon">⚡</span>
         <span>Solix Dashboard</span>
       </div>
-      <button id="btn-reload" class="btn-link">Andere Datei laden</button>
+      <div class="header-actions">
+        <label class="language-control">
+          <span data-i18n="dashboard.language">Sprache</span>
+          <select class="language-select" data-i18n-aria-label="dashboard.language" aria-label="Sprache">
+            <option value="de" data-i18n="dashboard.german">Deutsch</option>
+            <option value="en" data-i18n="dashboard.english">Englisch</option>
+          </select>
+        </label>
+        <button id="btn-reload" class="btn-link" data-i18n="dashboard.reload">Andere Datei laden</button>
+      </div>
     </header>
 
     <div class="controls-row">
-      <select id="view-type" class="view-select" aria-label="Ansicht wählen">
-        <option value="year">Jahr</option>
-        <option value="month">Monat</option>
-        <option value="total">Gesamt</option>
+      <select id="view-type" class="view-select" data-i18n-aria-label="dashboard.viewAria" aria-label="Ansicht wählen">
+        <option value="year" data-i18n="dashboard.year">Jahr</option>
+        <option value="month" data-i18n="dashboard.month">Monat</option>
+        <option value="total" data-i18n="dashboard.total">Gesamt</option>
       </select>
       <div class="period-nav">
-        <button id="btn-prev" class="btn-nav" aria-label="Vorheriger Zeitraum">&#8249;</button>
+        <button id="btn-prev" class="btn-nav" data-i18n-aria-label="dashboard.previous" aria-label="Vorheriger Zeitraum">&#8249;</button>
         <span id="period-label" class="period-label" aria-live="polite">—</span>
-        <button id="btn-next" class="btn-nav" aria-label="Nächster Zeitraum">&#8250;</button>
+        <button id="btn-next" class="btn-nav" data-i18n-aria-label="dashboard.next" aria-label="Nächster Zeitraum">&#8250;</button>
       </div>
     </div>
 
-    <div class="chart-tabs" role="tablist" aria-label="Diagramme">
+    <div class="chart-tabs" role="tablist" data-i18n-aria-label="dashboard.charts" aria-label="Diagramme">
       <button id="tab-sankey" class="chart-tab is-active" role="tab"
-        aria-selected="true" aria-controls="chart-wrap" tabindex="0">Energiefluss</button>
+        aria-selected="true" aria-controls="chart-wrap" tabindex="0" data-i18n="dashboard.energyFlow">Energiefluss</button>
       <button id="tab-haushalt" class="chart-tab" role="tab"
-        aria-selected="false" aria-controls="household-chart-wrap" tabindex="-1">Versorgung</button>
+        aria-selected="false" aria-controls="household-chart-wrap" tabindex="-1" data-i18n="dashboard.household">Versorgung</button>
       <button id="tab-pv-verteilung" class="chart-tab" role="tab"
-        aria-selected="false" aria-controls="pv-distribution-chart-wrap" tabindex="-1">Erzeugung</button>
+        aria-selected="false" aria-controls="pv-distribution-chart-wrap" tabindex="-1" data-i18n="dashboard.production">Erzeugung</button>
+      <button id="tab-ersparnis" class="chart-tab" role="tab"
+        aria-selected="false" aria-controls="ersparnis-chart-wrap" tabindex="-1" data-i18n="dashboard.savings">Ersparnis</button>
     </div>
 
     <div id="chart-wrap" class="chart-panel" role="tabpanel" aria-labelledby="tab-sankey">
@@ -84,19 +102,72 @@
       <div id="pv-distribution-chart"></div>
     </div>
 
+    <div id="ersparnis-chart-wrap" class="chart-panel" role="tabpanel" aria-labelledby="tab-ersparnis" hidden>
+      <div class="savings-controls">
+        <label class="savings-field" for="electricity-price">
+          <span data-i18n="savings.electricityPrice">Strompreis</span>
+          <span class="price-input-wrap">
+            <input id="electricity-price" type="text" inputmode="decimal" autocomplete="off" value="30,0" aria-describedby="electricity-price-unit" />
+            <span id="electricity-price-unit" data-i18n="savings.ctPerKwh">ct/kWh</span>
+          </span>
+        </label>
+        <label class="savings-field" for="feed-in-tariff">
+          <span data-i18n="savings.feedInTariff">Einspeisevergütung</span>
+          <span class="price-input-wrap">
+            <input id="feed-in-tariff" type="text" inputmode="decimal" autocomplete="off" value="0,0" aria-describedby="feed-in-tariff-unit" />
+            <span id="feed-in-tariff-unit" data-i18n="savings.ctPerKwh">ct/kWh</span>
+          </span>
+        </label>
+      </div>
+
+      <details class="price-schedule">
+        <summary data-i18n="savings.priceSchedule">Strompreis nach Zeitraum</summary>
+        <div class="price-schedule-content">
+          <div class="price-schedule-head" aria-hidden="true">
+            <span data-i18n="savings.until">Bis</span>
+            <span data-i18n="savings.price">Preis</span>
+            <span></span>
+          </div>
+          <div id="price-schedule-rows"></div>
+          <button id="btn-add-price-period" class="btn-add-price" type="button" data-i18n="savings.addPeriod">Zeitraum hinzufügen</button>
+        </div>
+      </details>
+
+      <div class="savings-chart-layout">
+        <div class="savings-donut-wrap">
+          <div id="ersparnis-chart"></div>
+          <div id="savings-total" class="savings-total" aria-live="polite"></div>
+        </div>
+        <dl class="savings-breakdown">
+          <div class="savings-breakdown-item savings-pv">
+            <dt data-i18n="energy.pv">PV</dt>
+            <dd id="savings-pv-value">—</dd>
+          </div>
+          <div class="savings-breakdown-item savings-battery">
+            <dt data-i18n="energy.battery">Batterie</dt>
+            <dd id="savings-battery-value">—</dd>
+          </div>
+          <div id="savings-export-item" class="savings-breakdown-item savings-export">
+            <dt data-i18n="savings.pvExport">PV export</dt>
+            <dd id="savings-export-value">—</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+
     <div class="stats-row">
       <div class="stat-card">
-        <span class="stat-label">Autarkie</span>
+        <span class="stat-label" data-i18n="dashboard.autonomy">Autarkie</span>
         <span id="autarkie-value" class="stat-value">—</span>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Eigenverbrauch</span>
+        <span class="stat-label" data-i18n="dashboard.selfConsumption">Eigenverbrauch</span>
         <span id="eigenverbrauch-value" class="stat-value">—</span>
       </div>
     </div>
 
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
